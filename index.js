@@ -6,6 +6,25 @@ var exports = module.exports = {}
   , run = exports._exp = {}
   , once = {};
 
+/**
+ * Begin the run
+ */
+
+exports.begin = function() {
+
+  return run.currentRunLoop = new RunLoop(run.currentRunLoop);
+};
+
+/**
+ * This will trigger the run to begin
+ * which will initiate all the queues and
+ * flushing of those queues.
+ */
+
+exports.end = function() {
+  run.currentRunLoop.end();
+  run.currentRunLoop = run.currentRunLoop.prev();
+};
 
 /**
  * Public API to running a run. This
@@ -16,7 +35,7 @@ var exports = module.exports = {}
  */
 
 exports.run = function(target, method) {
-    run.begin();
+    exports.begin();
 
     if (!method) {
       method = target;
@@ -73,25 +92,6 @@ exports.addQueue = function(name) {
 };
 
 /**
- * Begin the run
- */
-
-run.begin = function() {
-
-  return run.currentRunLoop = new RunLoop(run.currentRunLoop);
-};
-
-/**
- * This will trigger the run to begin
- * which will initiate all the queues and
- * flushing of those queues.
- */
-
-run.end = function() {
-
-};
-
-/**
  * List of queues. This can be extended
  * by a public method `addQueue`
  *
@@ -108,18 +108,34 @@ run.queues = ['sync'];
 
 run.currentRunLoop = null;
 
+/**
+ * If we are scheduling an autorun
+ * method.
+ *
+ * @type {Boolean}
+ */
+
 var scheduleAutorun = false;
+
+/**
+ * Autorun Function
+ */
 
 function autorun() {
   scheduleAutorun = null;
   if (run.currentRunLoop) { run.end(); }
 }
 
+/**
+ * Autorun the RunLoop. This will create
+ * a new RunLoop if non exists.
+ */
+
 run.autorun = function() {
 
   if (!run.currentRunLoop) {
 
-    run.begin();
+    exports.begin();
     if (!scheduleAutorun) {
       var scheduleAutorun = setTimeout(autorun, 1);
     }
@@ -134,30 +150,85 @@ run.autorun = function() {
  */
 
 function RunLoop(prev) {
-  this.prev = prev || null;
+  this._prev = prev || null;
   this._queues = {};
   this.queues = run.queues;
 }
 
 
+/**
+ * Schedule a queue only once.
+ *
+ * @param  {String} queue
+ * @param  {Object} target
+ * @param  {Function} method
+ */
+
 RunLoop.prototype.schedule = function(queue, target, method) {
+  var self = this;
 
   if (!this._queues[queue]) {
     this._queues[queue] = [];
   }
 
-  this._queues[queue].push({ target: target, method: method });
+  if (this._queues[queue].length === 0) {
+    this._queues[queue].push({
+      target: target, method: method
+    });
+  }
+  var found = false;
+
+  this._queues[queue].forEach(function(q) {
+
+    if (q.target[0] === target[0] && q.target[1] === target[1]) {
+      q.target = target;
+      q.method = method;
+      found = true;
+    }
+
+  });
+
+  if (found === false) {
+    self._queues[queue].push({
+      target: target, method: method
+      });
+  }
+
 };
 
+/**
+ * Return the previous RunLoop
+ *
+ * @return {RunLoop}
+ */
 
 RunLoop.prototype.prev = function() {
-  return this.prev;
+  return this._prev;
 };
+
+/**
+ * Begin the RunLoop
+ */
 
 RunLoop.prototype.end = function() {
   this.flush();
 };
 
+/**
+ * Flush all the queues.
+ */
+
 RunLoop.prototype.flush = function() {
+  var self = this;
+
+  run.queues.forEach(function(queueName) {
+
+    self._queues[queueName] && self._queues[queueName].forEach(function(ctx) {
+
+      ctx.method.apply(ctx.target, [ctx.target]);
+
+    });
+
+  });
 
 };

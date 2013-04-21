@@ -1,6 +1,6 @@
 {
-  "name": "tower-runtime",
-  "repo": "tower/runtime",
+  "name": "tower-runloop",
+  "repo": "tower/runloop",
   "description": "Tower Runtime",
   "version": "0.0.1",
   "keywords": [],
