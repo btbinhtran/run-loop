@@ -1,13 +1,39 @@
 
-var run = exports._exp = {}
-  , once = {};
+/**
+ * Expose `run`.
+ */
+
+exports = module.exports = run;
+
+function run(fn){
+  return run.run(fn);
+}
+
+/**
+ * List of queues. This can be extended
+ * by a public method `addQueue`
+ *
+ * @type {Array}
+ */
+
+exports.queues = ['sync'];
+
+/**
+ * Current RunLoop
+ *
+ * @type {RunLoop}
+ */
+
+exports.current = undefined;
+
+var once = {};
 
 /**
  * Begin the run
  */
 
 exports.begin = function(){
-  return run.currentRunLoop = new RunLoop(run.currentRunLoop);
+  return exports.current = new RunLoop(exports.current);
 };
 
 /**
@@ -17,12 +43,12 @@ exports.begin = function(){
  */
 
 exports.end = function(){
-  run.currentRunLoop.end();
-  run.currentRunLoop = run.currentRunLoop.prev();
+  exports.current.end();
+  exports.current = exports.current.prev();
 };
 
 /**
- * Public API to running a run. This
+ * Public API to running a exports. This
  * automatically handles the starting
  * and stopping of the loop.
  *
@@ -50,7 +76,7 @@ exports.run = function(target, method){
   }
 };
 
-exports.scheduleOnce = function(queue, target, method){
+exports.once = function(queue, target, method){
   if ('string' === typeof method) method = target[method];
 
   var o = once[target] = {
@@ -59,9 +85,9 @@ exports.scheduleOnce = function(queue, target, method){
     , method: method
   };
 
-  run.autorun();
+  exports.autorun();
 
-  run.currentRunLoop.schedule(queue, target, method);
+  exports.current.schedule(queue, target, method);
 };
 
 /**
@@ -76,25 +102,8 @@ exports.scheduleOnce = function(queue, target, method){
  */
 
 exports.addQueue = function(name){
-  run.queues.push(name);
+  exports.queues.push(name);
 };
-
-/**
- * List of queues. This can be extended
- * by a public method `addQueue`
- *
- * @type {Array}
- */
-
-run.queues = ['sync'];
-
-/**
- * Current RunLoop
- *
- * @type {RunLoop}
- */
-
-run.currentRunLoop = null;
 
 /**
  * If we are scheduling an autorun
@@ -111,7 +120,7 @@ var scheduleAutorun = false;
 
 function autorun() {
   scheduleAutorun = null;
-  if (run.currentRunLoop) { run.end(); }
+  if (exports.current) { exports.end(); }
 }
 
 /**
@@ -120,14 +129,15 @@ function autorun() {
  * This will create a new RunLoop if non exists.
  */
 
-run.autorun = function(){
-  if (!run.currentRunLoop) {
-    exports.begin();
-    if (!scheduleAutorun) {
-      // XXX: http://paulirish.com/2011/requestanimationframe-for-smart-animating/
-      // nextTick(autorun, 1)
-      var scheduleAutorun = setTimeout(autorun, 1);
-    }
+exports.autorun = function(){
+  if (exports.current) return;
+
+  exports.begin();
+
+  if (!scheduleAutorun) {
+    // XXX: http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+    // nextTick(autorun, 1)
+    scheduleAutorun = setTimeout(autorun, 1);
   }
 };
 
@@ -140,7 +150,7 @@ run.autorun = function(){
 function RunLoop(prev) {
   this._prev = prev || null;
   this._queues = {};
-  this.queues = run.queues;
+  this.queues = exports.queues;
 }
 
 /**
@@ -162,6 +172,7 @@ RunLoop.prototype.schedule = function(queue, target, method){
       , method: method
     });
   }
+
   var found = false;
 
   this._queues[queue].forEach(function(q){
@@ -205,7 +216,7 @@ RunLoop.prototype.end = function(){
 RunLoop.prototype.flush = function(){
   var self = this;
 
-  run.queues.forEach(function(queueName){
+  exports.queues.forEach(function(queueName){
     self._queues[queueName] && self._queues[queueName].forEach(function(ctx){
       ctx.method.apply(ctx.target, [ctx.target]);
     });
