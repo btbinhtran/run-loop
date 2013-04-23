@@ -1,15 +1,16 @@
 {
-  "name": "tower-runloop",
-  "repo": "tower/runloop",
+  "name": "tower-run-loop",
+  "repo": "tower/run-loop",
   "description": "Tower Runtime",
   "version": "0.0.1",
   "keywords": [],
-  "local": [
-
-  ],
+  "local": [],
   "main": "./index.js",
   "scripts": [
     "index.js"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "component/assert": "*"
+  }
 }

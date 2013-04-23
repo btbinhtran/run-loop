@@ -1,17 +1,12 @@
-/**
- * Module Exports
- */
 
-var exports = module.exports = {}
-  , run = exports._exp = {}
+var run = exports._exp = {}
   , once = {};
 
 /**
  * Begin the run
  */
 
-exports.begin = function() {
-
+exports.begin = function(){
   return run.currentRunLoop = new RunLoop(run.currentRunLoop);
 };
 
@@ -21,7 +16,7 @@ exports.begin = function() {
  * flushing of those queues.
  */
 
-exports.end = function() {
+exports.end = function(){
   run.currentRunLoop.end();
   run.currentRunLoop = run.currentRunLoop.prev();
 };
@@ -34,42 +29,35 @@ exports.end = function() {
  * @param  {Function} callback
  */
 
-exports.run = function(target, method) {
-    exports.begin();
+exports.run = function(target, method){
+  exports.begin();
 
-    if (!method) {
-      method = target;
-      target = undefined;
+  if (!method) {
+    method = target;
+    target = undefined;
+  }
+
+  if ('function' !== typeof method) {
+    throw new Error("Parameter passed to run must be a function.");
+  }
+
+  try {
+    if (method || target) {
+      return method.apply(target || {});
     }
-
-    if (typeof method !== 'function') {
-      throw new Error("Parameter passed to run must be a function.");
-    }
-
-
-    try {
-      if (method || target) {
-        return method.apply(target || {});
-      }
-    } finally {
-      run.end();
-    }
+  } finally {
+    exports.end();
+  }
 };
 
-
-
-exports.scheduleOnce = function(queue, target, method) {
-
-  if (typeof method === 'string') {
-    method = target[method];
-  }
+exports.scheduleOnce = function(queue, target, method){
+  if ('string' === typeof method) method = target[method];
 
   var o = once[target] = {
       queue: queue
     , target: target
     , method: method
   };
-
 
   run.autorun();
 
@@ -87,7 +75,7 @@ exports.scheduleOnce = function(queue, target, method) {
  * @param {String} name
  */
 
-exports.addQueue = function(name) {
+exports.addQueue = function(name){
   run.queues.push(name);
 };
 
@@ -127,20 +115,20 @@ function autorun() {
 }
 
 /**
- * Autorun the RunLoop. This will create
- * a new RunLoop if non exists.
+ * Autorun the RunLoop.
+ * 
+ * This will create a new RunLoop if non exists.
  */
 
-run.autorun = function() {
-
+run.autorun = function(){
   if (!run.currentRunLoop) {
-
     exports.begin();
     if (!scheduleAutorun) {
+      // XXX: http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+      // nextTick(autorun, 1)
       var scheduleAutorun = setTimeout(autorun, 1);
     }
   }
-
 };
 
 /**
@@ -155,7 +143,6 @@ function RunLoop(prev) {
   this.queues = run.queues;
 }
 
-
 /**
  * Schedule a queue only once.
  *
@@ -164,36 +151,33 @@ function RunLoop(prev) {
  * @param  {Function} method
  */
 
-RunLoop.prototype.schedule = function(queue, target, method) {
+RunLoop.prototype.schedule = function(queue, target, method){
   var self = this;
 
-  if (!this._queues[queue]) {
-    this._queues[queue] = [];
-  }
+  if (!this._queues[queue]) this._queues[queue] = [];
 
-  if (this._queues[queue].length === 0) {
+  if (0 === this._queues[queue].length) {
     this._queues[queue].push({
-      target: target, method: method
+        target: target
+      , method: method
     });
   }
   var found = false;
 
-  this._queues[queue].forEach(function(q) {
-
+  this._queues[queue].forEach(function(q){
     if (q.target[0] === target[0] && q.target[1] === target[1]) {
       q.target = target;
       q.method = method;
       found = true;
     }
-
   });
 
   if (found === false) {
     self._queues[queue].push({
-      target: target, method: method
-      });
+        target: target
+      , method: method
+    });
   }
-
 };
 
 /**
@@ -202,7 +186,7 @@ RunLoop.prototype.schedule = function(queue, target, method) {
  * @return {RunLoop}
  */
 
-RunLoop.prototype.prev = function() {
+RunLoop.prototype.prev = function(){
   return this._prev;
 };
 
@@ -210,7 +194,7 @@ RunLoop.prototype.prev = function() {
  * Begin the RunLoop
  */
 
-RunLoop.prototype.end = function() {
+RunLoop.prototype.end = function(){
   this.flush();
 };
 
@@ -218,17 +202,26 @@ RunLoop.prototype.end = function() {
  * Flush all the queues.
  */
 
-RunLoop.prototype.flush = function() {
+RunLoop.prototype.flush = function(){
   var self = this;
 
-  run.queues.forEach(function(queueName) {
-
-    self._queues[queueName] && self._queues[queueName].forEach(function(ctx) {
-
+  run.queues.forEach(function(queueName){
+    self._queues[queueName] && self._queues[queueName].forEach(function(ctx){
       ctx.method.apply(ctx.target, [ctx.target]);
-
     });
-
   });
 
+  return this;
 };
+
+// XXX: maybe a `part/next-tick` module?
+var nextTick;
+
+if ('undefined' === typeof window) {
+  nextTick = process.nextTick;
+} else {
+ nextTick = window.requestAnimationFrame
+  || window.webkitRequestAnimationFrame
+  || window.mozRequestAnimationFrame
+  || function(fn) { window.setTimeout(callback, 1000 / 60); };
+}
