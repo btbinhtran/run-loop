@@ -11,6 +11,5 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "component/assert": "*"
   }
 }
