@@ -6,7 +6,7 @@
 exports = module.exports = run;
 
 function run(fn){
-  return run.run(fn);
+  return exports.run(fn);
 }
 
 /**
@@ -26,13 +26,19 @@ exports.queues = ['sync'];
 
 exports.current = undefined;
 
-var once = {};
+/**
+ * Object of Batches
+ *
+ * @type {Object}
+ */
+
+exports.batches = {};
 
 /**
  * Begin the run
  */
 
-exports.begin = function(){
+exports.create = function(){
   return exports.current = new RunLoop(exports.current);
 };
 
@@ -42,8 +48,8 @@ exports.begin = function(){
  * flushing of those queues.
  */
 
-exports.end = function(){
-  exports.current.end();
+exports.flush = function(){
+  exports.current.run();
   exports.current = exports.current.prev();
 };
 
@@ -56,7 +62,7 @@ exports.end = function(){
  */
 
 exports.run = function(target, method){
-  exports.begin();
+  exports.create();
 
   if (!method) {
     method = target;
@@ -72,22 +78,27 @@ exports.run = function(target, method){
       return method.apply(target || {});
     }
   } finally {
-    exports.end();
+    exports.flush();
   }
 };
 
-exports.once = function(queue, target, method){
+exports.batch = function(queue, target, id, method){
   if ('string' === typeof method) method = target[method];
 
-  var o = once[target] = {
+  if (exports.batches[target] && exports.batches[target].id === id) {
+    return;
+  }
+
+  var currentBatch = exports.batches[target] = {
       queue: queue
     , target: target
     , method: method
+    , id: id
   };
 
   exports.autorun();
 
-  exports.current.schedule(queue, target, method);
+  exports.current.batch(currentBatch);
 };
 
 /**
@@ -120,19 +131,19 @@ var scheduleAutorun = false;
 
 function autorun() {
   scheduleAutorun = null;
-  if (exports.current) { exports.end(); }
+  if (exports.current) { exports.flush(); }
 }
 
 /**
  * Autorun the RunLoop.
- * 
+ *
  * This will create a new RunLoop if non exists.
  */
 
 exports.autorun = function(){
   if (exports.current) return;
 
-  exports.begin();
+  exports.create();
 
   if (!scheduleAutorun) {
     // XXX: http://paulirish.com/2011/requestanimationframe-for-smart-animating/
@@ -161,32 +172,35 @@ function RunLoop(prev) {
  * @param  {Function} method
  */
 
-RunLoop.prototype.schedule = function(queue, target, method){
+RunLoop.prototype.batch = function(batch){
   var self = this;
 
-  if (!this._queues[queue]) this._queues[queue] = [];
+  if (!this._queues[batch.queue]) this._queues[batch.queue] = [];
 
-  if (0 === this._queues[queue].length) {
-    this._queues[queue].push({
-        target: target
-      , method: method
+  if (0 === this._queues[batch.queue].length) {
+    this._queues[batch.queue].push({
+        target: batch.target
+      , method: batch.method
+      , id: batch.id
     });
   }
 
   var found = false;
 
-  this._queues[queue].forEach(function(q){
-    if (q.target[0] === target[0] && q.target[1] === target[1]) {
-      q.target = target;
-      q.method = method;
+  this._queues[batch.queue].forEach(function(q){
+    if (q.target === batch.target && q.id === batch.id) {
+      q.target = batch.target;
+      q.method = batch.method;
+      q.id     = batch.id;
       found = true;
     }
   });
 
   if (found === false) {
-    self._queues[queue].push({
-        target: target
-      , method: method
+    self._queues[batch.queue].push({
+        target: batch.target
+      , method: batch.method
+      , id: batch.id
     });
   }
 };
@@ -205,7 +219,7 @@ RunLoop.prototype.prev = function(){
  * Begin the RunLoop
  */
 
-RunLoop.prototype.end = function(){
+RunLoop.prototype.run = function(){
   this.flush();
 };
 
