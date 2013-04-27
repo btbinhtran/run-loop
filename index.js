@@ -1,3 +1,8 @@
+/**
+ * Module Dependencies
+ */
+
+var Emitter = require('emitter');
 
 /**
  * Expose `run`.
@@ -5,9 +10,22 @@
 
 exports = module.exports = run;
 
+/**
+ * Create a new runloop and run a callback within it.
+ *
+ * @param  {Function} fn
+ * @return {RunLoop}
+ */
+
 function run(fn){
-  return exports.run(fn);
+  return run.run(fn);
 }
+
+/**
+ * Provide Emitter for run
+ */
+
+Emitter(run);
 
 /**
  * List of queues. This can be extended
@@ -16,7 +34,7 @@ function run(fn){
  * @type {Array}
  */
 
-exports.queues = ['sync'];
+run.queues = ['sync'];
 
 /**
  * Current RunLoop
@@ -24,7 +42,7 @@ exports.queues = ['sync'];
  * @type {RunLoop}
  */
 
-exports.current = undefined;
+run.current = undefined;
 
 /**
  * Object of Batches
@@ -32,14 +50,16 @@ exports.current = undefined;
  * @type {Object}
  */
 
-exports.batches = {};
+run.batches = {};
 
 /**
  * Begin the run
  */
 
-exports.create = function(){
-  return exports.current = new RunLoop(exports.current);
+run.create = function(){
+  exports.current = new RunLoop(exports.current);
+  run.emit('created', exports.current);
+  return exports.current;
 };
 
 /**
@@ -48,7 +68,7 @@ exports.create = function(){
  * flushing of those queues.
  */
 
-exports.flush = function(){
+run.flush = function(){
   exports.current.run();
   exports.current = exports.current.prev();
 };
@@ -61,7 +81,7 @@ exports.flush = function(){
  * @param  {Function} callback
  */
 
-exports.run = function(target, method){
+run.run = function(target, method){
   exports.create();
 
   if (!method) {
@@ -82,14 +102,24 @@ exports.run = function(target, method){
   }
 };
 
-exports.batch = function(queue, target, id, method){
+
+/**
+ * Add a new batch to the runloop.
+ *
+ * @param  {String} queue
+ * @param  {Any} target
+ * @param  {Integer} id
+ * @param  {Function/String} method
+ */
+
+run.batch = function(queue, target, id, method){
   if ('string' === typeof method) method = target[method];
 
   if (exports.batches[target] && exports.batches[target].id === id) {
     return;
   }
 
-  var currentBatch = exports.batches[target] = {
+  var currentBatch = run.batches[target] = {
       queue: queue
     , target: target
     , method: method
@@ -102,18 +132,20 @@ exports.batch = function(queue, target, id, method){
 };
 
 /**
- * Add a new queue to the system. This
- * will always push the new queue to
- * the end of the pipe.
+ * Add a permanent queue to the 'queue' queue. (need to rephrase it)
  *
- * XXX: Provide a way to specify it's
- *      placement in the pipe.
- *
- * @param {String} name
+ * @param {Name}   queue
+ * @param {Function} callback
  */
 
-exports.addQueue = function(name){
-  exports.queues.push(name);
+run.add = function(queue, callback) {
+  run.on('created', function(instance) {
+    if (!instance._queues[queue]) instance._queues[queue] = [];
+    instance._queues[queue].push({
+      queue: queue
+      , method: callback
+    });
+  });
 };
 
 /**
@@ -140,7 +172,7 @@ function autorun() {
  * This will create a new RunLoop if non exists.
  */
 
-exports.autorun = function(){
+run.autorun = function(){
   if (exports.current) return;
 
   exports.create();
@@ -162,7 +194,16 @@ function RunLoop(prev) {
   this._prev = prev || null;
   this._queues = {};
   this.queues = exports.queues;
+
+
+
 }
+
+/**
+ * Expose Emitter
+ */
+
+Emitter(RunLoop.prototype);
 
 /**
  * Schedule a queue only once.
@@ -188,6 +229,7 @@ RunLoop.prototype.batch = function(batch){
   var found = false;
 
   this._queues[batch.queue].forEach(function(q){
+    if (q.target !== batch.target) return;
     if (q.target === batch.target && q.id === batch.id) {
       q.target = batch.target;
       q.method = batch.method;
@@ -231,10 +273,13 @@ RunLoop.prototype.flush = function(){
   var self = this;
 
   exports.queues.forEach(function(queueName){
-    self._queues[queueName] && self._queues[queueName].forEach(function(ctx){
-      ctx.method.apply(ctx.target, [ctx.target]);
+    self._queues[queueName] && self._queues[queueName].forEach(function(ctx, i){
+      ctx.method.apply(ctx.target || {}, ctx.target && [ctx.target] || []);
+      delete self._queues[queueName][i];
     });
   });
+
+  run.batches = {};
 
   return this;
 };
