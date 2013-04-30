@@ -58,7 +58,7 @@ run.batches = {};
 
 run.create = function(){
   exports.current = new RunLoop(exports.current);
-  run.emit('created', exports.current);
+  run.emit('create', exports.current);
   return exports.current;
 };
 
@@ -138,12 +138,14 @@ run.batch = function(queue, target, id, method){
  * @param {Function} callback
  */
 
-run.add = function(queue, callback) {
-  run.on('created', function(instance) {
+run.add = function(queue, callback, target, param) {
+  run.on('create', function(instance) {
     if (!instance._queues[queue]) instance._queues[queue] = [];
     instance._queues[queue].push({
-      queue: queue
+        queue: queue
       , method: callback
+      , param: param
+      , target: target
     });
   });
 };
@@ -194,9 +196,6 @@ function RunLoop(prev) {
   this._prev = prev || null;
   this._queues = {};
   this.queues = exports.queues;
-
-
-
 }
 
 /**
@@ -274,7 +273,9 @@ RunLoop.prototype.flush = function(){
 
   exports.queues.forEach(function(queueName){
     self._queues[queueName] && self._queues[queueName].forEach(function(ctx, i){
-      ctx.method.apply(ctx.target || {}, ctx.target && [ctx.target] || []);
+      var target = ctx.param || [ctx.target];
+      if (!ctx.method) return delete self._queues[queueName][i];
+      ctx.method.apply(ctx.target, target);
       delete self._queues[queueName][i];
     });
   });
@@ -288,9 +289,9 @@ RunLoop.prototype.flush = function(){
 var nextTick;
 
 if ('undefined' === typeof window) {
-  nextTick = process.nextTick;
+  run.nextTick = process.nextTick;
 } else {
- nextTick = window.requestAnimationFrame
+  run.nextTick = window.requestAnimationFrame
   || window.webkitRequestAnimationFrame
   || window.mozRequestAnimationFrame
   || function(fn) { window.setTimeout(callback, 1000 / 60); };
