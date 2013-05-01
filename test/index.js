@@ -1,5 +1,5 @@
-var loop = require('..')
-  , assert = require('assert')
+var loop = 'undefined' == typeof window ? require('..') : require('tower-run-loop')
+  , assert = require('component-assert')
 
 describe('run loop', function(){
 
