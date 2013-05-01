@@ -1,0 +1,12 @@
+{
+  "framework": "mocha",
+  "before_tests": [
+    "component build -d"
+  ],
+  "src_files": [
+    "**/*",
+    "build/build.js",
+    "test/*.js"
+  ],
+  "test_page": "test/index.html"
+}

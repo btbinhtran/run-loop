@@ -4,13 +4,19 @@
   "description": "Tower Runtime",
   "version": "0.0.1",
   "keywords": [],
+  "dependencies": {
+    "component/emitter": "*"
+  },
   "local": [],
-  "main": "index.js",
+  "paths": [
+    "../"
+  ],
+  "development": {
+    "component/assert": "*",
+    "visionmedia/mocha": "*"
+  },
   "scripts": [
     "index.js"
   ],
-  "license": "MIT",
-  "dependencies": {
-    "component/emitter": "*"
-  }
+  "license": "MIT"
 }
